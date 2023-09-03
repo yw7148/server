@@ -2,6 +2,9 @@
 Everything About my Oracle Cloud Server Setting
 
 ## WAS Server (144.24.80.106)
+
+
+## Web Server (158.180.70.211)
 ### Network
 ```
 docker network create youngwon
@@ -26,11 +29,13 @@ docker run -d \
     nginx:latest
 ```
 
-## DevOps Server (158.180.70.211)
+## Local Server
+ > Moved from Oracle Cloud server because of server performance issue.
+
 ### Jenkins
  > To use host docker engine in jenkins container, build Jenkins/Dockerfile with {HOST_DOCKER_GROUP_ID}
 ```
-docker build --build-arg DOCKER_GROUP_ID={HOST_DOCKER_GROUP_ID} -t youngwon/jenkins:lts Jenkins/Dockerfile
+docker build --build-arg DOCKER_GROUP_ID={HOST_DOCKER_GROUP_ID} -t youngwon/jenkins:lts Jenkins/.
 ```
 ```
 docker run -d \
@@ -43,15 +48,14 @@ docker run -d \
 ```
 - My Server:
 ```
-docker build --build-arg DOCKER_GROUP_ID=982 -t youngwon/jenkins:lts Jenkins/Dockerfile
+docker build --build-arg DOCKER_GROUP_ID=102 -t youngwon/jenkins:lts Jenkins/.
 ```
 ```
 docker run -d \
     -p 50000:50000 -p 8080:8080 \
-    -v /home/opc/jenkins_home:/var/jenkins_home \
+    -v /worksapce/java/jenkins_home:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
-    --env-file /home/opc/secrets/serverSecrets \
+    --env-file workspace/java/secrets/serverSecrets \
     youngwon/jenkins:lts
 ```
-- Jenkins server url: http://158.180.70.211:8080
