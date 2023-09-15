@@ -46,16 +46,19 @@ docker run -d \
     --env-file {ENV_FILE_PATH}\
     youngwon/jenkins:lts
 ```
-- My Server:
+- My Server ( vscode dev container ):
 ```
-docker build --build-arg DOCKER_GROUP_ID=102 -t youngwon/jenkins:lts Jenkins/.
+docker build --build-arg DOCKER_GROUP_ID=1001 -t youngwon/jenkins:lts Jenkins/.
+```
+```
+docker create volume jenkins_home
 ```
 ```
 docker run -d \
     -p 50000:50000 -p 8080:8080 \
-    -v /worksapce/java/jenkins_home:/var/jenkins_home \
+    -v jenkins_home:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
-    --env-file workspace/java/secrets/serverSecrets \
+    --env-file /workspaces/java/secrets/serverSecrets \
     youngwon/jenkins:lts
 ```
