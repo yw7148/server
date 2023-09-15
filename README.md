@@ -48,14 +48,17 @@ docker run -d \
 ```
 - My Server:
 ```
+docker volume create jenkins_home
+```
+```
 docker build --build-arg DOCKER_GROUP_ID=102 -t youngwon/jenkins:lts Jenkins/.
 ```
 ```
 docker run -d \
     -p 50000:50000 -p 8080:8080 \
-    -v /worksapce/java/jenkins_home:/var/jenkins_home \
+    -v jenkins_home:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
-    --env-file workspace/java/secrets/serverSecrets \
+    --env-file /workspaces/java/secrets/serverSecrets \
     youngwon/jenkins:lts
 ```
