@@ -60,5 +60,6 @@ docker run -d \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
     --env-file /workspaces/java/secrets/serverSecrets \
+    --restart unless-stopped \
     youngwon/jenkins:lts
 ```
