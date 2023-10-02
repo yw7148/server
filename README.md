@@ -1,10 +1,10 @@
 # server
 Everything About my Oracle Cloud Server Setting
 
-## WAS Server (144.24.80.106)
+## WAS Server (150.230.252.102)
 
 
-## Web Server (158.180.70.211)
+## DevOps server (158.180.85.209)
 ### Network
 ```
 docker network create youngwon
@@ -46,7 +46,7 @@ docker run -d \
     --env-file {ENV_FILE_PATH}\
     youngwon/jenkins:lts
 ```
-- My Server ( vscode dev container ):
+- My Server (WSL):
 ```
 docker build --build-arg DOCKER_GROUP_ID=1001 -t youngwon/jenkins:lts Jenkins/.
 ```
@@ -59,7 +59,18 @@ docker run -d \
     -v jenkins_home:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
-    --env-file /workspaces/java/secrets/serverSecrets \
+    --env-file /home/youngwon/secrets/serverSecrets \
     --restart unless-stopped \
     youngwon/jenkins:lts
+```
+#### To deploy with docker hub ( [Youngwon's DockerHub](https://hub.docker.com/repositories/yw7148) )
+ - login to docker hub
+> If you get "Error saving credentials: error storing credentials" error, open ~/.docker/config.json file and set "credsStore": "".
+```
+docker login
+```
+ - create docker context to deploy more easiliy
+```
+docker context create jenkins_was --docker host='ssh://jenkins@158.180.85.209'
+docker context create jenkins_devops --docker host='ssh://jenkins@150.230.252.102'
 ```
