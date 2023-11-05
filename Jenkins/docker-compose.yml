@@ -1,0 +1,18 @@
+services:
+  jenkins:
+    image: yw7148/jenkins:latest
+    container_name: jenkins
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - DOCKER_GROUP_ID=${DOCKER_GROUP_ID}
+    restart: unless-stopped
+    volumes:
+      - ${JENKINS_HOME}:/var/jenkins_home
+      - ${DOCKER_SOCK}:/var/run/docker.sock
+    env_file:
+      - ${SECRETS_ENV_FILE}
+    ports:
+      - ${PORT}:8080
+      - 50000:50000

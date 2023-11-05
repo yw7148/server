@@ -1,0 +1,15 @@
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    volumes:
+      - /home/opc/server/Nginx/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - youngwon
+    ports:
+      - 80:80
+      - 443:443
+
+networks:
+  youngwon:
+    external: true

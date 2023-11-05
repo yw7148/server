@@ -35,7 +35,7 @@ docker run -d \
 ### Jenkins
  > To use host docker engine in jenkins container, build Jenkins/Dockerfile with {HOST_DOCKER_GROUP_ID}
 ```
-docker build --build-arg DOCKER_GROUP_ID={HOST_DOCKER_GROUP_ID} -t youngwon/jenkins:lts Jenkins/.
+docker build --build-arg DOCKER_GROUP_ID={HOST_DOCKER_GROUP_ID} -t yw7148/jenkins:latest Jenkins/.
 ```
 ```
 docker run -d \
@@ -43,25 +43,26 @@ docker run -d \
     -v {PATH_TO_JENKINS_HOME}:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
-    --env-file {ENV_FILE_PATH}\
-    youngwon/jenkins:lts
+    --env-file {SECRETS_ENV_PATH}\
+    yw7148/jenkins:latest
 ```
 - My Server (WSL):
 ```
-docker build --build-arg DOCKER_GROUP_ID=1001 -t youngwon/jenkins:lts Jenkins/.
-```
-```
-docker create volume jenkins_home
+docker build --build-arg DOCKER_GROUP_ID=1001 -t yw7148/jenkins:latest Jenkins/.
 ```
 ```
 docker run -d \
     -p 50000:50000 -p 8080:8080 \
-    -v jenkins_home:/var/jenkins_home \
+    -v /home/youngwon/jenkins_home:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --name jenkins \
     --env-file /home/youngwon/secrets/serverSecrets \
     --restart unless-stopped \
-    youngwon/jenkins:lts
+    yw7148/jenkins:latest
+```
+or with docker-compose
+```
+docker compose -f Jenkins/docker-compose.yml up -d --build
 ```
 #### To deploy with docker hub ( [Youngwon's DockerHub](https://hub.docker.com/repositories/yw7148) )
  - login to docker hub
