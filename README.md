@@ -28,7 +28,10 @@ docker run -d \
     --name nginx \
     nginx:latest
 ```
-
+or with docker-compose:
+```
+docker compose -f Nginx/docker-compose.yml up -d
+```
 ## Local Server
  > Moved from Oracle Cloud server because of server performance issue.
 
