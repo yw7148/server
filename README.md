@@ -71,6 +71,10 @@ docker login
 ```
  - create docker context to deploy more easiliy
 ```
-docker context create jenkins_was --docker host='ssh://jenkins@158.180.85.209'
-docker context create jenkins_devops --docker host='ssh://jenkins@150.230.252.102'
+docker context create jenkins_was --docker host='ssh://jenkins@150.230.250.174'
+docker context create jenkins_devops --docker host='ssh://jenkins@152.67.206.246'
+```
+ - now deploy to server with
+```
+docker --context {jenkins_was|jenkins_devops} run {yw7148/image}
 ```
