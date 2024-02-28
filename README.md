@@ -67,6 +67,10 @@ or with docker-compose
 ```
 docker compose -f Jenkins/docker-compose.yml up -d --build
 ```
+#### To support multi-platform image (linux/amd64, linux/arm64, ...)
+```
+docker buildx create --name multiplatform --bootstrap --use
+```
 #### To deploy with docker hub ( [Youngwon's DockerHub](https://hub.docker.com/repositories/yw7148) )
  - login to docker hub
 > If you get "Error saving credentials: error storing credentials" error, open ~/.docker/config.json file and set "credsStore": "".
