@@ -1,6 +1,6 @@
 # server
 Everything About my Oracle Cloud Server Setting
-
+![server-arch](https://github.com/yw7148/server/assets/71220342/a857d7df-631f-4a1e-9723-24d352748b1a)
 ## WAS Server (150.230.252.102)
 
 
