@@ -5,6 +5,7 @@ services:
     volumes:
       - ${NGINX_CONF_FILE}:/etc/nginx/nginx.conf
       - ${CONFD_DIR}:/etc/nginx/conf.d
+      - ${SSL_DIR}:/etc/nginx/ssl
     networks:
       - youngwon
     ports:
