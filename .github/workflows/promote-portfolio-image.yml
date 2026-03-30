@@ -1,0 +1,40 @@
+name: Promote Portfolio Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Docker tag to promote into the production overlay.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Update production image tag
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          sed -i "s/^    newTag: .*/    newTag: ${IMAGE_TAG}/" apps/portfolio/overlays/prod/kustomization.yaml
+
+      - name: Commit manifest update
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          if git diff --quiet -- apps/portfolio/overlays/prod/kustomization.yaml; then
+            echo "No manifest change detected."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/portfolio/overlays/prod/kustomization.yaml
+          git commit -m "chore(portfolio): promote image to ${IMAGE_TAG}"
+          git push
