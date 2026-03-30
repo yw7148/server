@@ -1,10 +1,44 @@
 # server
-Everything About my Oracle Cloud Server Setting
-![server-arch](https://github.com/yw7148/server/assets/71220342/a857d7df-631f-4a1e-9723-24d352748b1a)
+Everything About my GitOps & Oracle Cloud Server Setting
+```mermaid
+flowchart LR
+    DEV[Developer / Operator]
+    GH[GitHub Repository<br/>server]
+    GHA[GitHub Actions<br/>Build + Push]
+    USER[Public User]
+    DNS[youngwon.me DNS]
 
-## Current Direction
+    subgraph HOME[Home node]
+        HOMEK3S[k3s management cluster]
+        ARGO[Argo CD]
+        HOMEK3S --> ARGO
+    end
 
-이 리포는 Jenkins/Nginx 기반 운영에서 Home node의 Argo CD 관리 클러스터와 OCI k3s 런타임 클러스터로 전환한 상태를 관리한다.
+    subgraph OCI[OCI k3s runtime cluster]
+        CONTROL[instance-control<br/>k3s server]
+        WORKER1[instance-worker-1<br/>k3s agent]
+        WORKER2[instance-worker-2<br/>k3s agent]
+        TRAEFIK[Traefik Ingress]
+        CERT[cert-manager]
+        APP[portfolio workload]
+
+        CONTROL --> WORKER1
+        CONTROL --> WORKER2
+        TRAEFIK --> APP
+        CERT --> TRAEFIK
+    end
+
+    DEV --> GH
+    GH --> GHA
+    GH --> ARGO
+    ARGO --> CONTROL
+    ARGO --> WORKER1
+    ARGO --> WORKER2
+    USER --> DNS
+    DNS --> TRAEFIK
+```
+
+Home node의 Argo CD 관리 클러스터와 OCI k3s 런타임 클러스터로 전환한 상태를 관리한다.
 
 - 설계 문서: `docs/k3s-argocd-migration-design.md`
 - OCI 적용 가이드: `docs/oci-k3s-apply-guide.md`
