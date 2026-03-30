@@ -1,0 +1,31 @@
+name: Validate GitOps Manifests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  kustomize-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Build bootstrap manifests
+        run: |
+          kustomize build bootstrap/home-mgmt/argocd-install >/dev/null
+          kustomize build bootstrap/home-mgmt/root-app >/dev/null
+
+      - name: Build Argo CD application set
+        run: |
+          kustomize build argocd >/dev/null
+
+      - name: Build OCI platform and workload manifests
+        run: |
+          kustomize build clusters/oci-prod >/dev/null
+          kustomize build apps/portfolio/overlays/prod >/dev/null

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: oci-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: OCI k3s platform and workloads managed from the Home node Argo CD instance.
+  sourceRepos:
+    - https://github.com/yw7148/server.git
+    - git@github.com:yw7148/server.git
+  destinations:
+    - server: '*'
+      namespace: '*'
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'

@@ -1,88 +1,65 @@
 # server
 Everything About my Oracle Cloud Server Setting
 ![server-arch](https://github.com/yw7148/server/assets/71220342/a857d7df-631f-4a1e-9723-24d352748b1a)
-## WAS Server (150.230.252.102)
 
+## Current Direction
 
-## DevOps server (158.180.85.209)
-### Network
-```
-docker network create youngwon
+이 리포는 Jenkins/Nginx 기반 운영에서 Home node의 Argo CD 관리 클러스터와 OCI k3s 런타임 클러스터로 전환한 상태를 관리한다.
+
+- 설계 문서: `docs/k3s-argocd-migration-design.md`
+- OCI 적용 가이드: `docs/oci-k3s-apply-guide.md`
+- Argo CD bootstrap: `bootstrap/home-mgmt/`
+- Argo CD application/app-of-apps: `argocd/`
+- OCI 공통 플랫폼: `clusters/oci-prod/`
+- 서비스별 앱 배포 선언: `apps/`
+
+## Apply To OCI
+
+상세 절차는 `docs/oci-k3s-apply-guide.md`를 보면 된다.
+
+핵심 순서는 다음과 같다.
+
+1. OCI `instance-control`, `instance-worker-1`, `instance-worker-2`에 k3s cluster를 구성한다.
+2. Home node에 management k3s와 Argo CD를 설치한다.
+3. Home node의 Argo CD에 OCI cluster를 `oci-prod`로 등록한다.
+4. root app을 적용해 `cert-manager`와 애플리케이션을 GitOps로 배포한다.
+5. `youngwon.me` DNS를 OCI ingress public IP로 전환한다.
+
+주의:
+
+- `instance-control`에서는 `server` 설치만 실행한다.
+- `instance-worker-1`, `instance-worker-2`에서만 `K3S_URL=...` join 명령을 실행한다.
+- `--node-ip`는 현재 로그인한 노드의 private IP와 정확히 일치해야 한다.
+
+빠른 시작 명령:
+
+```bash
+kubectl apply --server-side --force-conflicts -k bootstrap/home-mgmt/argocd-install
+argocd cluster add <kube-context> --name oci-prod
+kubectl apply -k bootstrap/home-mgmt/root-app
 ```
 
-### Nginx
-```
-docker run -d \
-    -p 80:80 -p 443:443\
-    -v {PATH_TO_NGINX_CONF}:/etc/nginx/nginx.conf \
-    --network youngwon \
-    --name nginx \
-    nginx:latest
-```
- - My Server:
-```
-docker run -d \
-    -p 80:80 -p 443:443\
-    -v /home/opc/server/Nginx/nginx.conf:/etc/nginx/nginx.conf \
-    --network youngwon \
-    --name nginx \
-    nginx:latest
-```
-or with docker-compose:
-```
-docker compose -f Nginx/docker-compose.yml up -d
-```
-## Local Server
- > Moved from Oracle Cloud server because of server performance issue.
+## Portfolio Deployment
 
-### Jenkins
- > To use host docker engine in jenkins container, build Jenkins/Dockerfile with {HOST_DOCKER_GROUP_ID}
-```
-docker build --build-arg DOCKER_GROUP_ID={HOST_DOCKER_GROUP_ID} -t yw7148/jenkins:latest Jenkins/.
-```
-```
-docker run -d \
-    -p 50000:50000 -p 8080:8080 \
-    -v {PATH_TO_JENKINS_HOME}:/var/jenkins_home \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    --name jenkins \
-    --env-file {SECRETS_ENV_PATH}\
-    yw7148/jenkins:latest
-```
-- My Server (WSL):
-```
-docker build --build-arg DOCKER_GROUP_ID=1001 -t yw7148/jenkins:latest Jenkins/.
-```
-```
-docker run -d \
-    -p 50000:50000 -p 8080:8080 \
-    -v /home/youngwon/jenkins_home:/var/jenkins_home \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    --name jenkins \
-    --env-file /home/youngwon/secrets/serverSecrets \
-    --restart unless-stopped \
-    yw7148/jenkins:latest
-```
-or with docker-compose
-```
-docker compose -f Jenkins/docker-compose.yml up -d --build
-```
-#### To support multi-platform image (linux/amd64, linux/arm64, ...)
-```
-docker buildx create --name multiplatform --bootstrap --use
-```
-#### To deploy with docker hub ( [Youngwon's DockerHub](https://hub.docker.com/repositories/yw7148) )
- - login to docker hub
-> If you get "Error saving credentials: error storing credentials" error, open ~/.docker/config.json file and set "credsStore": "".
-```
-docker login
-```
- - create docker context to deploy more easiliy
-```
-docker context create jenkins_was --docker host='ssh://jenkins@150.230.250.174'
-docker context create jenkins_devops --docker host='ssh://jenkins@152.67.206.246'
-```
- - now deploy to server with
-```
-docker --context {jenkins_was|jenkins_devops} run {yw7148/image}
-```
+`portfolio`는 Docker Hub 이미지 `yw7148/portfolio`로 배포한다.
+
+- base manifests: `apps/portfolio/base/`
+- production overlay: `apps/portfolio/overlays/prod/`
+- prod ingress host/path: `youngwon.me/portfolio`
+- 기본 태그 승격 workflow: `.github/workflows/promote-portfolio-image.yml`
+
+## Multi-Service Structure
+
+현재 구조는 `portfolio` 한 개만 들어가 있지만, 여러 서비스를 추가할 수 있게 나눠져 있다.
+
+- 서비스별 매니페스트: `apps/<service>/base/`
+- 환경별 오버레이: `apps/<service>/overlays/prod/`
+- Argo CD 앱 선언: `argocd/applications/<service>-prod.yaml`
+- 서비스별 namespace: `clusters/oci-prod/namespaces/<service>.yaml`
+
+예시는 `apps/README.md`에 정리해두었다.
+
+민감한 값 주의:
+
+- 실제 `K3S_TOKEN`, Argo CD 비밀번호, kubeconfig, 운영용 공인 IP는 문서에 하드코딩하지 않는다.
+- 설치 예시는 항상 `<NODE_TOKEN>`, `<OCI_CONTROL_PUBLIC_IP>`, `<ARGOCD_ADMIN_PASSWORD>` 같은 placeholder를 사용한다.
