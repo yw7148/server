@@ -47,7 +47,7 @@
 
 - 이번 설계는 multi-control-plane HA k3s까지 다루지 않는다.
 - OCI Load Balancer 신규 도입은 이번 기본안에 포함하지 않는다.
-- Secret manager 신규 도입은 이번 기본안에 포함하지 않는다.
+- OCI Vault 이외의 다른 secret backend까지 범용화하는 것은 이번 기본안에 포함하지 않는다.
 - 모든 애플리케이션의 동시 이전은 목표가 아니다. 우선순위는 `portfolio`다.
 
 ## Final Decisions
@@ -58,6 +58,9 @@
 - 이 `server` 리포를 GitOps source of truth로 사용한다.
 - 외부 ingress는 k3s 기본 Traefik를 사용한다.
 - TLS 발급과 갱신은 `cert-manager` + Let's Encrypt 기준으로 설계한다.
+- 런타임 application secret은 OCI Vault에 저장하고 External Secrets Operator를 통해 Kubernetes Secret으로 동기화한다.
+- OCI Compute 위 k3s에서는 OCI Vault 인증을 `InstancePrincipal` 기준으로 설계하고 `ClusterSecretStore`를 공용 backend 진입점으로 사용한다.
+- 공개 repo에는 실제 Vault 식별자를 고정하지 않고 `ClusterSecretStore`를 환경변수 템플릿으로 렌더링해 적용한다.
 - Jenkins 대체 CI는 GitHub Actions로 한다.
 - Argo CD UI는 기본적으로 public exposure 없이 private access를 원칙으로 한다.
 
@@ -75,6 +78,8 @@ flowchart TD
     OCIW2[instance-worker-2<br/>k3s agent]
     TRAEFIK[Traefik Ingress]
     CERT[cert-manager]
+    ESO[External Secrets Operator]
+    VAULT[OCI Vault]
     APP[portfolio workload]
 
     DEV --> GH
@@ -85,6 +90,8 @@ flowchart TD
     ARGO --> OCIW1
     ARGO --> OCIW2
     CERT --> TRAEFIK
+    VAULT --> ESO
+    ESO --> APP
     TRAEFIK --> APP
 ```
 
@@ -149,6 +156,15 @@ flowchart TD
 - `youngwon.me` 인증서는 Kubernetes secret으로 관리된다.
 - HTTP-01 challenge를 기본값으로 두고 ingress class는 `traefik`를 사용한다.
 
+### Secret Management
+
+- 애플리케이션 secret 값은 Git에 커밋하지 않고 OCI Vault에만 저장한다.
+- Argo CD는 `ClusterSecretStore`와 `ExternalSecret` 같은 참조 리소스만 sync한다.
+- External Secrets Operator는 OCI Vault에서 값을 읽어 Kubernetes Secret을 생성하고 주기적으로 갱신한다.
+- `portfolio` workload는 생성된 Kubernetes Secret을 `env.valueFrom.secretKeyRef`로 사용한다.
+- 현재 OCI Compute 위 k3s 구조에서는 `InstancePrincipal`을 기본 인증 경로로 사용한다.
+- `OCI_REGION`은 민감정보는 아니지만 `OCI_VAULT_OCID`와 함께 환경별 메타데이터이므로 public repo에는 하드코딩하지 않는다.
+
 ### Required Ports
 
 - Internet -> OCI ingress
@@ -198,7 +214,7 @@ apps/
 - `argocd/applications/`
   - OCI cluster에 배포할 child application
 - `clusters/oci-prod/`
-  - namespace, cluster issuer, 공통 platform manifest
+  - namespace, cluster issuer, secret-store template, 공통 platform manifest
 - `apps/portfolio/`
   - `portfolio` 배포 선언
 - `.github/workflows/`
@@ -218,6 +234,7 @@ apps/
 - GitHub Actions는 배포 대상 manifest의 이미지 태그를 업데이트한다.
 - Argo CD는 Git 변경을 감지해 OCI cluster와 동기화한다.
 - v1에서는 Argo CD Image Updater 대신 GitHub Actions가 manifest promotion을 수행한다.
+- secret 값은 GitHub Actions나 Git에 넣지 않고 OCI Vault에서 runtime에 주입한다.
 
 이 방식의 장점은 다음과 같다.
 
@@ -255,6 +272,8 @@ apps/
   - namespace
   - `cert-manager`
   - `ClusterIssuer`
+  - `External Secrets Operator`
+  - `ClusterSecretStore` template
   - 공통 ingress policy
 
 ### 6. First Workload Onboarding
@@ -364,4 +383,3 @@ apps/
 - Docker Hub `yw7148` repository를 계속 사용할 수 있다.
 - Domain은 계속 `youngwon.me`를 사용한다.
 - Terraform 리포는 인프라 source of truth이고, 이 리포는 운영 선언과 GitOps source of truth 역할을 맡는다.
-

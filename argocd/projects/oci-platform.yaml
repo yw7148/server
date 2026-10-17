@@ -10,6 +10,7 @@ spec:
   sourceRepos:
     - https://github.com/yw7148/server.git
     - git@github.com:yw7148/server.git
+    - https://charts.external-secrets.io
   destinations:
     - server: '*'
       namespace: '*'

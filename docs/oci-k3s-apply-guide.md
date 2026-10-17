@@ -380,7 +380,36 @@ sudo firewall-cmd --list-ports
 argocd cluster list
 ```
 
-## 7. Apply GitOps Root Application
+## 7. Prepare OCI Vault Access for External Secrets
+
+`portfolio server`가 받아야 할 런타임 secret은 OCI Vault에 저장한다.
+
+권장 secret 이름:
+
+- `portfolio-server-db-url`
+- `portfolio-server-db-user`
+- `portfolio-server-db-pw`
+- `portfolio-server-jwt-secret`
+
+OCI IAM 준비:
+
+1. k3s 노드가 속한 dynamic group을 만든다.
+2. Vault/Secret이 있는 compartment에 아래 예시 정책을 추가한다.
+
+```text
+Allow dynamic-group <K3S_NODE_DYNAMIC_GROUP> to read vaults in compartment <COMPARTMENT_NAME>
+Allow dynamic-group <K3S_NODE_DYNAMIC_GROUP> to read secret-family in compartment <COMPARTMENT_NAME>
+```
+
+주의:
+
+- 이 리포의 `ClusterSecretStore`는 `InstancePrincipal`을 기준으로 설계되어 있다.
+- `OCI_REGION`은 비밀이 아니지만 `OCI_VAULT_OCID`는 환경 메타데이터이므로 공개 repo에 고정하지 않는다.
+- 실제 `ClusterSecretStore`는 `clusters/oci-prod/secret-stores/clustersecretstore-oci-vault.yaml.tmpl`을 환경변수로 렌더링해 적용한다.
+- OCI IAM policy가 반영되기까지 수 분 걸릴 수 있다.
+- `ClusterSecretStore` CRD는 External Secrets Operator가 설치하므로 이 단계에서는 아직 template을 적용하지 않는다.
+
+## 8. Apply GitOps Root Application
 
 리포 루트에서 실행:
 
@@ -389,9 +418,10 @@ sudo kubectl apply -k bootstrap/home-mgmt/root-app
 sudo kubectl -n argocd get applications
 ```
 
-몇 분 뒤 아래 두 앱이 보여야 한다.
+몇 분 뒤 아래 세 앱이 보여야 한다.
 
 - `oci-base`
+- `oci-external-secrets-operator`
 - `portfolio-prod`
 
 동기화 강제 실행:
@@ -399,10 +429,46 @@ sudo kubectl -n argocd get applications
 ```bash
 argocd app sync server-root
 argocd app sync oci-base
+argocd app sync oci-external-secrets-operator
+```
+
+External Secrets Operator와 CRD가 준비될 때까지 기다린다.
+
+```bash
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl wait \
+  --for=condition=Established \
+  crd/clustersecretstores.external-secrets.io \
+  --timeout=120s
+
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n external-secrets rollout status \
+  deployment/external-secrets \
+  --timeout=180s
+```
+
+## 9. Apply OCI ClusterSecretStore
+
+리포 루트에서 환경별 값을 준비하고 OCI k3s kubeconfig를 명시해 적용한다.
+
+```bash
+cp .env.example .env
+# .env에 실제 OCI_REGION과 OCI_VAULT_OCID를 채운다.
+OCI_KUBECONFIG="$HOME/.kube/oci-prod.yaml" ./scripts/apply-oci-secret-store.sh
+```
+
+`ClusterSecretStore`가 OCI Vault에 접근할 수 있는지 확인한 뒤 portfolio를 다시 동기화한다.
+
+```bash
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl wait \
+  --for=condition=Ready \
+  clustersecretstore/oci-vault \
+  --timeout=120s
+
 argocd app sync portfolio-prod
 ```
 
-## 8. Verify OCI Runtime Resources
+자동 sync가 먼저 시작됐다면 `ClusterSecretStore` 생성 전까지 `portfolio-prod`가 일시적으로 오류 상태일 수 있다. Store가 `Ready=True`가 된 뒤 다시 sync하면 복구된다.
+
+## 10. Verify OCI Runtime Resources
 
 OCI cluster 기준으로 확인:
 
@@ -410,16 +476,30 @@ OCI cluster 기준으로 확인:
 KUBECONFIG=~/.kube/oci-prod.yaml kubectl get ns
 KUBECONFIG=~/.kube/oci-prod.yaml kubectl get pods -A
 KUBECONFIG=~/.kube/oci-prod.yaml kubectl get ingress -A
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n external-secrets get deploy,pods
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl get clustersecretstore
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n portfolio get externalsecret,secret
 KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n portfolio get deploy,svc,pods
 ```
 
 중점 확인 항목:
 
 - `cert-manager` pod 정상 기동
+- `external-secrets` controller 정상 기동
+- `oci-vault` `ClusterSecretStore`가 `Ready=True`
+- `portfolio-server-env` `ExternalSecret`가 `Ready=True`
+- `portfolio-server-env` Kubernetes Secret 생성
 - `portfolio` deployment replica 2개 정상 기동
 - `portfolio` ingress에 `youngwon.me`와 `/portfolio` rule 반영
 
-## 9. DNS Cutover
+문제가 있으면 아래 확인이 빠르다.
+
+```bash
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n portfolio describe externalsecret portfolio-server-env
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n external-secrets logs deployment/external-secrets
+```
+
+## 11. DNS Cutover
 
 현재 `youngwon.me` DNS를 기존 Nginx가 아닌 OCI ingress 진입 public IP로 변경한다.
 
@@ -436,7 +516,7 @@ curl -I https://youngwon.me/portfolio
 
 처음에는 cert-manager 인증서 발급까지 수 분이 걸릴 수 있다.
 
-## 10. Promote a New Portfolio Image
+## 12. Promote a New Portfolio Image
 
 기본 배포 이미지는 `apps/portfolio/overlays/prod/kustomization.yaml`에서 관리한다.
 
@@ -456,7 +536,7 @@ git push
 
 push 후 Argo CD가 자동 동기화한다.
 
-## 11. Add More Services
+## 13. Add More Services
 
 현재 구조는 `portfolio` 하나만 배포하지만, 여러 서비스가 추가될 수 있게 이미 분리돼 있다.
 
