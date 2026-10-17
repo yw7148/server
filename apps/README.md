@@ -15,6 +15,7 @@ clusters/oci-prod/namespaces/<service>.yaml
 
 1. `clusters/oci-prod/namespaces/` 아래에 namespace를 추가한다.
 2. `apps/<service>/base/`에 Deployment, Service, Ingress를 추가한다.
-3. `apps/<service>/overlays/prod/`에서 이미지 태그와 prod 설정을 덮어쓴다.
-4. `argocd/applications/` 아래에 새 Application을 추가한다.
-5. `argocd/kustomization.yaml`에 새 Application을 등록한다.
+3. 런타임 secret이 필요한 서비스라면 `ExternalSecret`과 `env.valueFrom.secretKeyRef` wiring을 같이 추가한다.
+4. `apps/<service>/overlays/prod/`에서 이미지 태그와 prod 설정을 덮어쓴다.
+5. `argocd/applications/` 아래에 새 Application을 추가한다.
+6. `argocd/kustomization.yaml`에 새 Application을 등록한다.

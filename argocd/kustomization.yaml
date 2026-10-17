@@ -4,4 +4,5 @@ kind: Kustomization
 resources:
   - projects/oci-platform.yaml
   - applications/oci-base.yaml
+  - applications/oci-external-secrets-operator.yaml
   - applications/portfolio-prod.yaml

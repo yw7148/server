@@ -1,1 +1,5 @@
 .omx
+.DS_Store
+.env
+clusters/oci-prod/secret-stores/rendered/
+*.local.env

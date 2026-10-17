@@ -20,12 +20,16 @@ flowchart LR
         WORKER2[instance-worker-2<br/>k3s agent]
         TRAEFIK[Traefik Ingress]
         CERT[cert-manager]
+        ESO[External Secrets Operator]
+        VAULT[OCI Vault]
         APP[portfolio workload]
 
         CONTROL --> WORKER1
         CONTROL --> WORKER2
         TRAEFIK --> APP
         CERT --> TRAEFIK
+        ESO --> APP
+        VAULT --> ESO
     end
 
     DEV --> GH
@@ -56,8 +60,10 @@ Home node의 Argo CD 관리 클러스터와 OCI k3s 런타임 클러스터로 �
 1. OCI `instance-control`, `instance-worker-1`, `instance-worker-2`에 k3s cluster를 구성한다.
 2. Home node에 management k3s와 Argo CD를 설치한다.
 3. Home node의 Argo CD에 OCI cluster를 `oci-prod`로 등록한다.
-4. root app을 적용해 `cert-manager`와 애플리케이션을 GitOps로 배포한다.
-5. `youngwon.me` DNS를 OCI ingress public IP로 전환한다.
+4. root app을 적용해 `cert-manager`와 `external-secrets`를 GitOps로 배포한다.
+5. External Secrets Operator가 준비된 뒤 `ClusterSecretStore`를 환경변수 기반 템플릿으로 별도 적용한다.
+6. `portfolio` 애플리케이션을 동기화하고 runtime secret 주입을 확인한다.
+7. `youngwon.me` DNS를 OCI ingress public IP로 전환한다.
 
 주의:
 
@@ -81,6 +87,8 @@ kubectl apply -k bootstrap/home-mgmt/root-app
 - production overlay: `apps/portfolio/overlays/prod/`
 - prod ingress host/path: `youngwon.me/portfolio`
 - 기본 태그 승격 workflow: `.github/workflows/promote-portfolio-image.yml`
+- 런타임 secret source: OCI Vault -> External Secrets Operator -> Kubernetes Secret `portfolio-server-env`
+- `ClusterSecretStore` 값은 공개 repo에 고정하지 않고 `scripts/apply-oci-secret-store.sh`에서 환경변수로 렌더링한다.
 
 ## Multi-Service Structure
 
@@ -96,4 +104,6 @@ kubectl apply -k bootstrap/home-mgmt/root-app
 민감한 값 주의:
 
 - 실제 `K3S_TOKEN`, Argo CD 비밀번호, kubeconfig, 운영용 공인 IP는 문서에 하드코딩하지 않는다.
+- 애플리케이션 secret 값은 Git에 넣지 않고 OCI Vault에 저장한 뒤 `ClusterSecretStore` / `ExternalSecret`으로 참조한다.
+- `OCI_REGION`은 비밀은 아니지만, `OCI_VAULT_OCID`를 포함한 환경별 식별자는 공개 repo에 고정하지 않고 로컬 환경변수로 렌더링한다.
 - 설치 예시는 항상 `<NODE_TOKEN>`, `<OCI_CONTROL_PUBLIC_IP>`, `<ARGOCD_ADMIN_PASSWORD>` 같은 placeholder를 사용한다.
