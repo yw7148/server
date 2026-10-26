@@ -6,7 +6,7 @@ flowchart LR
     GH[GitHub Repository<br/>server]
     GHA[GitHub Actions<br/>Build + Push]
     USER[Public User]
-    DNS[youngwon.me DNS]
+    CF[Cloudflare<br/>portfolio-api.youngwon.me]
 
     subgraph HOME[Home node]
         HOMEK3S[k3s management cluster]
@@ -38,8 +38,8 @@ flowchart LR
     ARGO --> CONTROL
     ARGO --> WORKER1
     ARGO --> WORKER2
-    USER --> DNS
-    DNS --> TRAEFIK
+    USER --> CF
+    CF --> TRAEFIK
 ```
 
 Home node의 Argo CD 관리 클러스터와 OCI k3s 런타임 클러스터로 전환한 상태를 관리한다.
@@ -63,7 +63,7 @@ Home node의 Argo CD 관리 클러스터와 OCI k3s 런타임 클러스터로 �
 4. root app을 적용해 `cert-manager`와 `external-secrets`를 GitOps로 배포한다.
 5. External Secrets Operator가 준비된 뒤 `ClusterSecretStore`를 환경변수 기반 템플릿으로 별도 적용한다.
 6. `portfolio` 애플리케이션을 동기화하고 runtime secret 주입을 확인한다.
-7. `youngwon.me` DNS를 OCI ingress public IP로 전환한다.
+7. Cloudflare에서 `portfolio-api.youngwon.me`를 OCI ingress public IP로 연결한다.
 
 주의:
 
@@ -85,7 +85,8 @@ kubectl apply -k bootstrap/home-mgmt/root-app
 
 - base manifests: `apps/portfolio/base/`
 - production overlay: `apps/portfolio/overlays/prod/`
-- prod ingress host/path: `youngwon.me/portfolio`
+- prod ingress host/path: `portfolio-api.youngwon.me/api`
+- frontend host: `portfolio.youngwon.me` (Vercel 유지)
 - 기본 태그 승격 workflow: `.github/workflows/promote-portfolio-image.yml`
 - 런타임 secret source: OCI Vault -> External Secrets Operator -> Kubernetes Secret `portfolio-server-env`
 - `ClusterSecretStore` 값은 공개 repo에 고정하지 않고 `scripts/apply-oci-secret-store.sh`에서 환경변수로 렌더링한다.

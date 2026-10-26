@@ -8,13 +8,13 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - youngwon.me
-      secretName: youngwon-me-tls
+        - portfolio-api.youngwon.me
+      secretName: portfolio-api-youngwon-me-tls
   rules:
-    - host: youngwon.me
+    - host: portfolio-api.youngwon.me
       http:
         paths:
-          - path: /portfolio
+          - path: /api
             pathType: Prefix
             backend:
               service:

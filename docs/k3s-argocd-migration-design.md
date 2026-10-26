@@ -11,7 +11,8 @@
 - 외부 노출은 OCI k3s의 Traefik ingress를 사용한다.
 - TLS는 `cert-manager`와 ACME를 사용해 자동화한다.
 - CI는 GitHub Actions로, CD는 Argo CD GitOps로 분리한다.
-- 기존 `youngwon.me/portfolio` 경로는 초기 마이그레이션 동안 그대로 유지한다.
+- 포트폴리오 프론트엔드는 `portfolio.youngwon.me`의 Vercel 배포를 유지한다.
+- 백엔드는 `portfolio-api.youngwon.me/api/**` 전용 origin으로 분리한다.
 
 ## Current State
 
@@ -61,6 +62,8 @@
 - 런타임 application secret은 OCI Vault에 저장하고 External Secrets Operator를 통해 Kubernetes Secret으로 동기화한다.
 - OCI Compute 위 k3s에서는 OCI Vault 인증을 `InstancePrincipal` 기준으로 설계하고 `ClusterSecretStore`를 공용 backend 진입점으로 사용한다.
 - 공개 repo에는 실제 Vault 식별자를 고정하지 않고 `ClusterSecretStore`를 환경변수 템플릿으로 렌더링해 적용한다.
+- Cloudflare는 `portfolio-api.youngwon.me`의 public edge와 DNS를 담당한다.
+- `portfolio.youngwon.me`는 Vercel을 계속 가리키며 백엔드 cutover의 영향을 받지 않는다.
 - Jenkins 대체 CI는 GitHub Actions로 한다.
 - Argo CD UI는 기본적으로 public exposure 없이 private access를 원칙으로 한다.
 
@@ -145,16 +148,19 @@ flowchart TD
 
 ### Traffic Model
 
-- 외부 사용자 요청은 `youngwon.me`를 통해 OCI k3s ingress로 직접 유입된다.
-- 초기 기본안은 DNS를 `instance-control`의 public IP로 연결한다.
+- 외부 API 요청은 `portfolio-api.youngwon.me`를 통해 OCI k3s ingress로 유입된다.
+- Cloudflare `A` record를 `instance-control`의 public IP로 연결한다.
 - 이후 필요 시 다중 A record 또는 OCI Load Balancer로 확장할 수 있다.
-- `/portfolio` 경로는 Traefik ingress rule로 유지한다.
+- Traefik은 `portfolio-api.youngwon.me` host와 `/api` prefix만 `portfolio` service로 전달한다.
+- 백엔드의 기존 `/api/v1/**` 경로를 보존하며 ingress에서 prefix를 제거하지 않는다.
 
 ### TLS
 
 - `cert-manager`가 Let's Encrypt certificate를 발급한다.
-- `youngwon.me` 인증서는 Kubernetes secret으로 관리된다.
+- `portfolio-api.youngwon.me` origin 인증서는 Kubernetes secret으로 관리된다.
 - HTTP-01 challenge를 기본값으로 두고 ingress class는 `traefik`를 사용한다.
+- Cloudflare SSL/TLS mode는 origin 인증서를 검증하는 `Full (strict)`를 사용한다.
+- 최초 발급은 `DNS only` record로 ACME HTTP-01을 완료한 뒤 Cloudflare proxy를 활성화한다.
 
 ### Secret Management
 
@@ -279,7 +285,7 @@ apps/
 ### 6. First Workload Onboarding
 
 - `portfolio`를 첫 번째 GitOps-managed workload로 등록한다.
-- `/portfolio` 경로와 TLS가 정상 동작하는지 확인한다.
+- `portfolio-api.youngwon.me/api/v1/projects` 경로와 TLS가 정상 동작하는지 확인한다.
 
 ## Portfolio Migration Plan
 
@@ -287,17 +293,19 @@ apps/
 
 - 현재 Nginx가 프록시하는 `portfolio` backend의 동작 포트와 health check 경로를 확인한다.
 - OCI k3s cluster에 동일 이미지를 배포해 병렬 검증한다.
-- Traefik ingress로 `/portfolio`가 서비스 가능한지 먼저 검증한다.
+- public DNS cutover 전에는 `Host: portfolio-api.youngwon.me` 헤더와 origin IP를 사용해 Traefik route를 검증한다.
 
 ### Cutover
 
-- `youngwon.me/portfolio`의 실제 ingress를 OCI k3s로 전환한다.
-- 기존 Nginx 설정과 새 ingress를 일정 시간 병행 검증한다.
-- 응답 코드, 정적 리소스 경로, HTTPS 동작을 확인한다.
+- Cloudflare에 DNS-only `A` record `portfolio-api.youngwon.me`를 생성한다.
+- cert-manager `Certificate`가 `Ready=True`가 되면 record를 Proxied로 전환한다.
+- Cloudflare SSL/TLS mode가 `Full (strict)`인지 확인한다.
+- `portfolio.youngwon.me`의 Vercel DNS는 변경하지 않는다.
+- API 응답 코드, TLS, forwarded headers, HTTPS 동작을 확인한다.
 
 ### After Cutover
 
-- 일정 기간 관찰 후 기존 Nginx의 `/portfolio` 프록시를 제거한다.
+- 일정 기간 관찰 후 기존 Nginx의 portfolio backend 프록시를 제거한다.
 - Jenkins가 더 이상 배포 경로에 필요 없음을 확인한 뒤 종료한다.
 
 ## Rollback Plan
@@ -372,7 +380,7 @@ apps/
 
 - 운영자가 Argo CD, OCI k3s, GitHub Actions의 역할 경계를 한 번에 설명할 수 있다.
 - Home node와 OCI node 각각에 무엇이 올라가는지 모호하지 않다.
-- `youngwon.me/portfolio`를 어떤 순서로 옮길지 절차가 분명하다.
+- `portfolio-api.youngwon.me`를 어떤 순서로 공개할지 절차가 분명하다.
 - Jenkins 종료 전 필요한 검증 단계가 정의되어 있다.
 - rollback 시점과 기준이 명확하다.
 
@@ -381,5 +389,5 @@ apps/
 - OCI 런타임 클러스터의 최종 노드는 `instance-control`, `instance-worker-1`, `instance-worker-2`다.
 - `portfolio`는 OCI k3s 위로 먼저 이전할 대표 workload다.
 - Docker Hub `yw7148` repository를 계속 사용할 수 있다.
-- Domain은 계속 `youngwon.me`를 사용한다.
+- 프론트엔드는 `portfolio.youngwon.me`, 백엔드는 `portfolio-api.youngwon.me`를 사용한다.
 - Terraform 리포는 인프라 source of truth이고, 이 리포는 운영 선언과 GitOps source of truth 역할을 맡는다.

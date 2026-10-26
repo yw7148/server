@@ -490,7 +490,8 @@ KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n portfolio get deploy,svc,pods
 - `portfolio-server-env` `ExternalSecret`가 `Ready=True`
 - `portfolio-server-env` Kubernetes Secret 생성
 - `portfolio` deployment replica 2개 정상 기동
-- `portfolio` ingress에 `youngwon.me`와 `/portfolio` rule 반영
+- `portfolio` ingress에 `portfolio-api.youngwon.me`와 `/api` rule 반영
+- `portfolio` deployment에 `SPRING_PROFILES_ACTIVE=prod` 반영
 
 문제가 있으면 아래 확인이 빠르다.
 
@@ -501,17 +502,48 @@ KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n external-secrets logs deployment/ext
 
 ## 11. DNS Cutover
 
-현재 `youngwon.me` DNS를 기존 Nginx가 아닌 OCI ingress 진입 public IP로 변경한다.
+`portfolio.youngwon.me`는 Vercel을 계속 사용한다. Cloudflare에는 백엔드 전용
+`portfolio-api.youngwon.me` record만 추가한다.
 
-기본안:
+Cloudflare API로 적용할 때 필요한 최소 권한:
 
-- `A` record `youngwon.me` -> `<OCI_CONTROL_PUBLIC_IP>`
+- API Token template: `Edit zone DNS`
+- Resource: `youngwon.me` zone으로 제한
+- 로컬 환경변수: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `OCI_CONTROL_PUBLIC_IP`
+
+실제 token과 zone ID, public IP는 Git에 저장하지 않는다. Cloudflare Dashboard에서
+직접 생성하거나 아래 API 호출로 DNS-only `A` record를 생성한다.
+
+```bash
+curl --request POST \
+  "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records" \
+  --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --data "{\"type\":\"A\",\"name\":\"portfolio-api.youngwon.me\",\"content\":\"${OCI_CONTROL_PUBLIC_IP}\",\"ttl\":1,\"proxied\":false}"
+```
+
+먼저 HTTP origin route를 확인한다.
+
+```bash
+curl --header "Host: portfolio-api.youngwon.me" \
+  http://<OCI_CONTROL_PUBLIC_IP>/api/v1/projects
+```
+
+cert-manager가 origin 인증서를 발급한 다음 `Certificate`가 `Ready=True`인지 확인한다.
+
+```bash
+KUBECONFIG=~/.kube/oci-prod.yaml kubectl -n portfolio get certificate
+```
+
+그 후 Cloudflare record를 Proxied로 전환하고 SSL/TLS mode를 `Full (strict)`로 설정한다.
+이 순서를 지키면 origin 인증서 발급 전 Cloudflare의 strict 검증이 ACME HTTP-01을
+막는 상황을 피할 수 있다.
 
 변경 후 확인:
 
 ```bash
-curl -I http://youngwon.me/portfolio
-curl -I https://youngwon.me/portfolio
+curl -I http://portfolio-api.youngwon.me/api/v1/projects
+curl -i https://portfolio-api.youngwon.me/api/v1/projects
 ```
 
 처음에는 cert-manager 인증서 발급까지 수 분이 걸릴 수 있다.
