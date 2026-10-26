@@ -9,3 +9,21 @@ resources:
 images:
   - name: yw7148/portfolio
     newTag: latest
+
+patches:
+  - target:
+      kind: Deployment
+      name: portfolio
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: portfolio
+      spec:
+        template:
+          spec:
+            containers:
+              - name: portfolio
+                env:
+                  - name: SPRING_PROFILES_ACTIVE
+                    value: prod
